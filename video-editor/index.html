@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cutroom — Video Editor</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="logo" aria-hidden="true"></span>Cutroom</div>
+    <nav class="menu">
+      <button id="btnImport" data-icon="import" title="Import media (Ctrl+I)">Import</button>
+      <button id="btnTitle" data-icon="text" title="New title at playhead (T)">Title</button>
+      <span class="sep"></span>
+      <button id="btnUndo" class="ghost" data-icon="undo" title="Undo (Ctrl+Z)"></button>
+      <button id="btnRedo" class="ghost" data-icon="redo" title="Redo (Ctrl+Shift+Z)"></button>
+      <span class="sep"></span>
+      <button id="btnNew" class="ghost" data-icon="file" title="New project">New</button>
+      <button id="btnOpen" class="ghost" data-icon="folder" title="Open project (Ctrl+O)">Open</button>
+      <button id="btnSave" class="ghost" data-icon="save" title="Save project (Ctrl+S)">Save</button>
+    </nav>
+    <div class="spacer"></div>
+    <button id="btnShortcuts" class="ghost" data-icon="keyboard" title="Keyboard shortcuts"></button>
+    <button id="btnExport" class="primary" data-icon="export" title="Export (Ctrl+M)">Export</button>
+    <input type="file" id="fileInput" multiple accept="video/*,audio/*,image/*" hidden>
+    <input type="file" id="projectInput" accept=".json,application/json" hidden>
+  </header>
+
+  <main class="workspace">
+    <section class="panel bin">
+      <div class="panel-head">Project <span class="sub" id="binCount"></span></div>
+      <div id="binList" class="bin-list"></div>
+    </section>
+
+    <section class="panel monitor">
+      <div class="panel-head">Program <span class="sub" id="seqInfo"></span></div>
+      <div class="monitor-stage" id="stage"><canvas id="preview" width="1280" height="720"></canvas></div>
+      <div class="transport">
+        <span class="tc" id="tcCurrent">00:00:00:00</span>
+        <div class="transport-btns">
+          <button id="btnToStart" class="ghost" data-icon="toStart" title="Go to start (Home)"></button>
+          <button id="btnStepBack" class="ghost" data-icon="stepBack" title="Back one frame (←)"></button>
+          <button id="btnPlay" title="Play (Space)"></button>
+          <button id="btnStepFwd" class="ghost" data-icon="stepFwd" title="Forward one frame (→)"></button>
+          <button id="btnToEnd" class="ghost" data-icon="toEnd" title="Go to end (End)"></button>
+        </div>
+        <div class="transport-right">
+          <span class="tc dim" id="tcDuration">00:00:00:00</span>
+          <button id="btnFullscreen" class="ghost" data-icon="fullscreen" title="Fullscreen"></button>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel inspector">
+      <div class="panel-head">Effect Controls</div>
+      <div id="inspector" class="inspector-body"></div>
+    </section>
+
+    <section class="panel timeline">
+      <div class="resizer" id="tlResizer" title="Drag to resize"></div>
+      <div class="tl-toolbar">
+        <div class="group">
+          <button class="ghost" data-tool="select" data-icon="cursor" title="Selection tool (V)"></button>
+          <button class="ghost" data-tool="razor" data-icon="razor" title="Razor tool (C)"></button>
+        </div>
+        <span class="sep"></span>
+        <button id="btnSnap" class="ghost active" data-icon="magnet" title="Snapping (N)"></button>
+        <button id="btnSplit" class="ghost" data-icon="split" title="Split at playhead (S)"></button>
+        <button id="btnDelete" class="ghost" data-icon="trash" title="Delete selection (Del)"></button>
+        <span class="sep"></span>
+        <button id="btnAddV" class="ghost" data-icon="plus" title="Add video track">Video track</button>
+        <button id="btnAddA" class="ghost" data-icon="plus" title="Add audio track">Audio track</button>
+        <div class="spacer"></div>
+        <button id="btnZoomOut" class="ghost" data-icon="minus" title="Zoom out (−)"></button>
+        <input type="range" id="zoomSlider" min="0" max="100" step="0.5" aria-label="Timeline zoom">
+        <button id="btnZoomIn" class="ghost" data-icon="plus" title="Zoom in (+)"></button>
+        <button id="btnFit" class="ghost" data-icon="fit" title="Zoom to fit (\)"></button>
+      </div>
+      <div class="tl-scroll" id="tlScroll">
+        <div class="tl-content" id="tlContent">
+          <div class="tl-ruler-row">
+            <div class="tl-corner">Sequence</div>
+            <div class="tl-ruler" id="tlRulerTrack"><canvas id="ruler"></canvas></div>
+          </div>
+          <div id="tlTracks"></div>
+          <div class="playhead" id="playhead"></div>
+          <div class="snapline" id="snapLine"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" role="status" aria-live="polite"></div>
+  <div id="modal" class="modal hidden"></div>
+  <div id="ctxMenu" class="ctx hidden" role="menu"></div>
+
+  <script src="js/util.js"></script>
+  <script src="js/state.js"></script>
+  <script src="js/engine.js"></script>
+  <script src="js/timeline.js"></script>
+  <script src="js/ui.js"></script>
+</body>
+</html>
