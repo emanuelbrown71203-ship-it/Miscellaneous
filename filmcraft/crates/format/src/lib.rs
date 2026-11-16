@@ -81,9 +81,7 @@ pub const OLDEST_SCHEMA: u32 = 1;
 pub enum FormatError {
     #[error("not a Cutroom project: {0}")]
     NotAProject(String),
-    #[error(
-        "this project was saved by a newer version of Cutroom (project schema v{found}); this build reads up to v{supported}. Update Cutroom to open it."
-    )]
+    #[error("this project was saved by a newer version of Cutroom (project schema v{found}); this build reads up to v{supported}. Update Cutroom to open it.")]
     TooNew { found: u32, supported: u32 },
     #[error("project schema v{found} is too old for this build (oldest supported: v{oldest})")]
     TooOld { found: u32, oldest: u32 },
