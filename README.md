@@ -1,4 +1,5 @@
 # Miscellaneous
 
-- [`filmcraft/`](filmcraft/): **FilmCraft**, an open-source Premiere-style video editor written in Rust, imported from [storytold/filmcraft](https://github.com/storytold/filmcraft) as the base for our own features. See [`filmcraft/UPSTREAM.md`](filmcraft/UPSTREAM.md).
-- [`video-editor/`](video-editor/): **Cutroom**, a lightweight HTML/JS browser video editor (open `video-editor/index.html`).
+- [`filmcraft/`](filmcraft/): **Cutroom**, a professional Premiere-style video editor written in Rust. It is a rebranded, modified version of [FilmCraft](https://github.com/storytold/filmcraft). See [`filmcraft/UPSTREAM.md`](filmcraft/UPSTREAM.md).
+- [`cutroom-web/`](cutroom-web/): the built browser version of Cutroom, deployed to Vercel.
+- [`video-editor/`](video-editor/): an earlier lightweight HTML/JS browser video editor.

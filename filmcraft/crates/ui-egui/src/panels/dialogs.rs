@@ -466,7 +466,7 @@ fn about_tab(app: &mut FilmcraftApp, ui: &mut egui::Ui) {
     ui.heading("Cutroom");
     ui.label(tlf!("Version {version}", version = env!("CARGO_PKG_VERSION")));
     ui.label(tl!("A pure-Rust non-linear video editor."));
-    ui.label(egui::RichText::new(tl!("Based on Cutroom by the ArtCraft team.")).color(t.text_dim));
+    ui.label(egui::RichText::new(tl!("Based on FilmCraft by the ArtCraft team.")).color(t.text_dim));
     ui.add_space(10.0);
     let mut link = |ui: &mut egui::Ui, id: &str, icon: Icon, label: &str, url: &str, primary: bool| {
         let size = egui::vec2(ui.available_width(), if primary { 36.0 } else { 28.0 });
@@ -497,7 +497,7 @@ fn about_tab(app: &mut FilmcraftApp, ui: &mut egui::Ui) {
     };
     link(ui, "github", Icon::Code, tl!("Source code on GitHub"), links::GITHUB, true);
     ui.add_space(6.0);
-    link(ui, "upstream", Icon::Globe, tl!("Cutroom, the upstream project"), links::UPSTREAM, false);
+    link(ui, "upstream", Icon::Globe, tl!("FilmCraft, the upstream project"), links::UPSTREAM, false);
     link(ui, "reportIssue", Icon::Code, tl!("Report an issue"), links::ISSUES, false);
     ui.add_space(10.0);
     ui.label(egui::RichText::new(tl!("MIT OR Apache-2.0. Fonts: Inter, Noto Serif and JetBrains Mono (SIL OFL 1.1).")).small().color(t.text_dim));

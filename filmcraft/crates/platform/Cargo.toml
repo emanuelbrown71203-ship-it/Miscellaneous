@@ -66,3 +66,7 @@ filmcraft-media = { workspace = true }
 filmcraft-frame = { workspace = true }
 filmcraft-project = { workspace = true }
 filmcraft-render = { workspace = true }
+
+# Codec worker threads on native targets only (see the craft-video note in the workspace Cargo.toml).
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+craft-video = { workspace = true, features = ["threads"] }

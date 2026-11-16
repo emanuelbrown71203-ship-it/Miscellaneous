@@ -1,6 +1,6 @@
 //! Project links (Help menu, About dialog, Home screen).
 //!
-//! Cutroom is based on Cutroom by the ArtCraft team (MIT OR Apache-2.0). The ArtCraft name and
+//! Cutroom is based on FilmCraft by the ArtCraft team (MIT OR Apache-2.0). The ArtCraft name and
 //! marks are not used here; the upstream project is credited in plain text, as its brand licence
 //! allows.
 
@@ -17,7 +17,7 @@ pub const UPSTREAM: &str = "https://github.com/storytold/filmcraft";
 /// (command id, label, url) for every link, in menu order.
 pub const ALL: [(&str, &str, &str); 3] = [
     ("help.github", "Cutroom on GitHub", GITHUB),
-    ("help.website", "Based on Cutroom (upstream project)", UPSTREAM),
+    ("help.website", "Based on FilmCraft (upstream project)", UPSTREAM),
     ("help.reportIssue", "Report an Issue…", ISSUES),
 ];
 
@@ -127,6 +127,9 @@ mod tests {
         assert_eq!(url_for("help.github"), Some(GITHUB));
         assert_eq!(url_for("help.website"), Some(UPSTREAM));
         assert_eq!(url_for("help.discord"), None);
+        // The upstream credit must name FilmCraft, never this app: a bulk rename of the product
+        // name once turned it into "Based on Cutroom", which misstates where the code comes from.
+        assert!(ALL.iter().any(|(id, label, _)| *id == "help.website" && label.contains("FilmCraft")), "upstream credit names FilmCraft");
         assert_eq!(url_for("help.nope"), None);
     }
 
