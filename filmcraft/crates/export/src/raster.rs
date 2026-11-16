@@ -97,7 +97,11 @@ pub(crate) fn dpx(rgba: &[u8], w: u32, h: u32) -> Result<Vec<u8>> {
     put32(&mut hd, 24, 1664); // generic header length
     put32(&mut hd, 28, 384); // industry header length
     put32(&mut hd, 32, 0); // user data length
-    hd[160..169].copy_from_slice(b"Cutroom");
+    // creator (offset 160, 100 bytes of NUL-padded ASCII): size the copy from the name, which
+    // has changed length before (a fixed 9-byte range panicked once the product was renamed).
+    const CREATOR: &[u8] = b"Cutroom";
+    hd[160..260].fill(0);
+    hd[160..160 + CREATOR.len()].copy_from_slice(CREATOR);
     // image information header
     put16(&mut hd, 768, 0); // orientation: left to right, top to bottom
     put16(&mut hd, 770, 1); // one image element
@@ -322,6 +326,12 @@ mod tests {
 
     #[test]
     fn dpx_header_and_packing() {
+        // The creator field holds the product name, NUL-padded to its full 100 bytes.
+        {
+            let hd = dpx(&[10, 20, 30, 255], 1, 1).unwrap();
+            assert_eq!(&hd[160..167], b"Cutroom");
+            assert!(hd[167..260].iter().all(|&b| b == 0), "creator field is NUL-padded");
+        }
         // 2×1: pure red, then (1, 128, 255)
         let px = [255, 0, 0, 255, 1, 128, 255, 7];
         let f = dpx(&px, 2, 1).unwrap();
