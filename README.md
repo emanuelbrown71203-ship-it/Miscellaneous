@@ -29,15 +29,33 @@ re-pick in a second without re-analysing the video.
 
 ## Run it
 
-You need Python 3.10+ and [ffmpeg](https://ffmpeg.org/download.html) on your PATH.
+**Windows:** double-click `Clutch.bat`. **macOS / Linux:** run `./clutch.sh`.
+
+The first run sets everything up (a Python environment, the libraries, and ffmpeg if it's missing), then
+opens Clutch. You need Python 3.10+ installed first.
+
+To do it by hand:
 
 ```bash
 python -m venv .venv
 .venv/bin/pip install -r requirements.txt      # Windows: .venv\Scripts\pip
-.venv/bin/python run.py                         # opens http://127.0.0.1:8765
+.venv/bin/python run.py --phone
 ```
 
-Optional:
+### Desktop and phone
+
+- **Desktop:** Clutch opens in its own app window. If a native window isn't available it uses an Edge or
+  Chrome app window, and failing that a normal browser tab (`--browser` forces a tab).
+- **Phone:** start with `--phone` (the launchers do), click **Use on phone** in the app and scan the QR code
+  with a phone on the same Wi-Fi. You get a phone-sized version of the whole app: paste links, send a video
+  from the phone, pick clips, edit, render and download the finished shorts to the phone. Use "Add to Home
+  Screen" to keep it as an icon.
+
+The PC does the work and keeps the videos; the phone is a screen for it, so Clutch has to be running on the
+PC. Phone access only listens on your local network and only answers devices that opened the QR link.
+Without `--phone`, nothing outside the PC can reach it.
+
+Optional settings:
 
 - `ANTHROPIC_API_KEY=...` turns on AI ranking and titles.
 - `CLUTCH_WHISPER_MODEL=small` (default `base`) trades speed for caption accuracy. The model downloads on first use.
@@ -69,6 +87,6 @@ Only clip videos you made or have permission to use.
 
 Layout: `clutch/signals/` (detectors), `clutch/highlights.py` (fusion and clip picking),
 `clutch/render.py` + `clutch/captions.py` (ffmpeg output), `clutch/pipeline.py` (jobs),
-`clutch/server.py` + `clutch/static/` (web app).
+`clutch/server.py` + `clutch/static/` (web app), `clutch/desktop.py` (app window), `clutch/phone.py` (phone pairing).
 
 The caption font is Anton, under the SIL Open Font License (`clutch/fonts/OFL-Anton.txt`).

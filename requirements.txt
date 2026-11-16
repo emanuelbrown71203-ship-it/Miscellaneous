@@ -8,3 +8,7 @@ yt-dlp>=2025.1.1
 faster-whisper>=1.0
 # Optional: AI ranking and titles (needs ANTHROPIC_API_KEY)
 anthropic>=1.0
+# Desktop app window (falls back to an Edge/Chrome app window, then a browser tab)
+pywebview>=5.0
+# QR code for pairing a phone
+segno>=1.6

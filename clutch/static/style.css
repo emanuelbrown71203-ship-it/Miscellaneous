@@ -152,17 +152,62 @@ legend { font-weight: 500; padding: 0; }
 .render-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 4px; }
 #c-result { width: 180px; border-radius: 8px; background: #000; }
 
+/* The source video must stay rendered (not display:none) or phones won't decode frames for the preview. */
+.offscreen { position: fixed; left: 0; bottom: 0; width: 2px; height: 2px; opacity: 0; pointer-events: none; }
+.back { display: none; }
+.phone-dialog { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 10px; padding: 22px; max-width: min(440px, 92vw); }
+.phone-dialog::backdrop { background: rgba(8, 9, 22, .7); }
+.phone-dialog ol { padding-left: 20px; margin: 12px 0; display: grid; gap: 6px; }
+.phone-dialog .qr { background: #fff; border-radius: 8px; padding: 6px; width: 220px; margin: 14px auto; }
+.phone-dialog .qr svg { display: block; width: 100%; height: auto; }
+.phone-dialog code { display: block; background: var(--ink); padding: 8px 10px; border-radius: 6px; overflow-wrap: anywhere; font-size: 13px; margin: 8px 0 14px; }
+.phone-dialog form { margin-top: 16px; text-align: right; }
+
 @media (max-width: 1050px) {
   .work, .setup { grid-template-columns: 1fr; }
   .editor { position: static; }
 }
-@media (max-width: 640px) {
-  .editor { grid-template-columns: 1fr; }
-  .phone { max-width: 260px; }
+/* ---------- phone format ---------- */
+@media (max-width: 700px) {
+  body { font-size: 16px; padding-bottom: env(safe-area-inset-bottom); }
+  button, .button, .filebtn, select { min-height: 44px; }
+  input[type=text], input[type=url], input:not([type]), input[type=number] { min-height: 44px; font-size: 16px; } /* 16px stops iOS zooming on focus */
+  .bar { padding: 10px 16px; padding-top: max(10px, env(safe-area-inset-top)); gap: 10px; }
+  .caps, #btn-phone { display: none; }
+  .home { padding: 28px 16px 60px; }
+  .intake h1 { font-size: 38px; }
+  .lede { font-size: 16px; margin: 12px 0 22px; }
   .url-row { flex-direction: column; }
   .url-row button { padding: 12px; justify-content: center; }
+  .project-list li { flex-wrap: wrap; }
+  .project-list a { flex-basis: 100%; padding-bottom: 2px; flex-wrap: wrap; gap: 4px 12px; }
+  .project-list a b { flex-basis: 100%; }
+
+  .project { padding: 14px 16px 40px; }
+  .phead h1 { font-size: 26px; }
+  .phead-actions { width: 100%; }
+  .phead-actions button { flex: 1; justify-content: center; }
+  .setup { padding: 12px; gap: 14px; }
+  .seg { display: flex; }
+  .seg button { flex: 1; justify-content: center; padding: 7px 6px; }
+  .lens label { flex: 1 1 100%; }
+  .timeline { padding: 10px 10px 6px; margin-top: 14px; }
+  .legend { gap: 6px 12px; font-size: 12px; }
+  #tl { height: 150px; }
+  .work { margin-top: 16px; gap: 0; }
+
+  /* one pane at a time: the clip list, or the editor for the chosen clip */
+  .project[data-pane="edit"] .clips { display: none; }
+  .project[data-pane="clips"] .editor { display: none; }
+  .back { display: inline-flex; justify-self: start; }
+  .editor { grid-template-columns: 1fr; padding: 12px; gap: 14px; position: static; }
+  .phone { width: min(100%, 46vh); margin: 0 auto; }
   .row { grid-template-columns: 1fr; gap: 2px; }
-  .bar, .project { padding-left: 16px; padding-right: 16px; }
-  .caps { display: none; }
+  .trim { grid-template-columns: 1fr; }
+  .render-row { position: sticky; bottom: 0; background: var(--panel); padding: 10px 0 calc(10px + env(safe-area-inset-bottom)); margin: 0 0 -4px; border-top: 1px solid var(--line); z-index: 2; }
+  .render-row .primary, .render-row .button { flex: 1; justify-content: center; }
+  .render-row { flex-wrap: nowrap; gap: 8px; }
+  .render-row button, .render-row .button { padding-left: 8px; padding-right: 8px; font-size: 15px; }
+  #c-result { width: 100%; max-width: 240px; margin: 0 auto; }
 }
 @media (prefers-reduced-motion: reduce) { .meter i { transition: none; } }

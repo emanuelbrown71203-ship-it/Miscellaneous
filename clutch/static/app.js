@@ -38,6 +38,8 @@ function debounce(fn, ms) { let h; return (...a) => { clearTimeout(h); h = setTi
 
 /* ---------- home ---------- */
 
+let DROP_HINT = "Drop a video here, or click to choose one. MP4, MKV, MOV.";
+
 function homeSettings() {
   const s = { game: $("game").value };
   const a = parseClock($("sec-start").value), b = parseClock($("sec-end").value);
@@ -94,7 +96,7 @@ async function uploadFile(file) {
     const p = await api("POST", "/api/projects/upload", fd);
     location.hash = `#/p/${p.id}`;
   } catch (err) { homeError(err.message); }
-  $("drop-hint").textContent = "Drop a video here, or click to choose one. MP4, MKV, MOV.";
+  $("drop-hint").textContent = DROP_HINT;
 }
 const drop = $("drop");
 drop.addEventListener("click", () => $("file").click());
@@ -114,6 +116,7 @@ async function openProject(pid) {
   clearInterval(S.poll);
   Object.assign(S, { pid, p: null, sig: null, sel: null, editorFor: null, t: 0, lastStatus: null, frameT: 0, wordsFor: "" });
   $("home").hidden = true; $("project").hidden = false; $("setup").hidden = true;
+  $("project").dataset.pane = "clips";
   $("src").removeAttribute("src");
   try { await refresh(); } catch (err) { location.hash = ""; return; }
   S.poll = setInterval(() => { if (busy() || rendering()) refresh().catch(() => {}); }, 1000);
@@ -193,8 +196,12 @@ $("clip-list").addEventListener("click", (e) => {
   if (b) selectClip(b.dataset.id);
 });
 
+function setPane(pane) { $("project").dataset.pane = pane; if (pane === "edit" && matchMedia("(max-width: 700px)").matches) window.scrollTo(0, 0); else drawTimeline(); }
+$("btn-back").addEventListener("click", () => { $("src").pause(); setPane("clips"); });
+
 function selectClip(id) {
   S.sel = id; S.editorFor = null;
+  setPane("edit");
   const c = clip();
   if (c) seek(c.start);
   paint();
@@ -315,8 +322,7 @@ $("c-render").addEventListener("click", async () => {
 $("c-delete").addEventListener("click", async () => {
   const c = clip(); if (!c) return;
   await api("DELETE", `/api/projects/${S.pid}/clips/${c.id}`);
-  S.sel = null; await refresh();
-  if (S.p.clips[0]) selectClip(S.p.clips[0].id);
+  S.sel = null; setPane("clips"); await refresh();
 });
 $("btn-render-all").addEventListener("click", async () => { await api("POST", `/api/projects/${S.pid}/render-all`); refresh(); });
 $("btn-add-clip").addEventListener("click", async () => {
@@ -454,7 +460,7 @@ $("tl").addEventListener("click", (e) => {
   if (!S.p || !S.p.info) return;
   const r = e.target.getBoundingClientRect(), t = ((e.clientX - r.left) / r.width) * S.p.info.duration;
   const hit = S.p.clips.find((c) => t >= c.start && t <= c.end);
-  if (hit && hit.id !== S.sel) { S.sel = hit.id; S.editorFor = null; }
+  if (hit && hit.id !== S.sel) { S.sel = hit.id; S.editorFor = null; setPane("edit"); }
   seek(t); paint();
 });
 window.addEventListener("resize", drawTimeline);
@@ -563,6 +569,22 @@ $("chat-add").addEventListener("change", async (e) => {
   e.target.value = "";
 });
 
+/* ---------- phone pairing ---------- */
+
+$("btn-phone").addEventListener("click", async () => {
+  const body = $("phone-body");
+  try {
+    const info = await api("GET", "/api/phone");
+    body.innerHTML = info.enabled
+      ? `<ol><li>Connect your phone to the same Wi-Fi as this PC.</li><li>Scan this code with the phone's camera.</li><li>To keep it handy, use your phone browser's "Add to Home Screen".</li></ol>
+         <div class="qr">${info.qr}</div><p class="muted">Or type this address into the phone's browser:</p><code>${esc(info.url)}</code>
+         <p class="muted">Anyone with this code can use Clutch while they are on your Wi-Fi, so only share it with people you trust. Videos stay on the PC; the phone controls it.</p>`
+      : `<p>Phone access is off. Close Clutch and start it again with phone access:</p><code>python run.py --phone</code>
+         <p class="muted">Starting Clutch with Clutch.bat or clutch.sh turns it on for you.</p>`;
+  } catch (err) { body.textContent = err.message; }
+  $("phone-dialog").showModal();
+});
+
 /* ---------- boot ---------- */
 
 function route() {
@@ -578,5 +600,13 @@ window.addEventListener("hashchange", route);
   if (!S.cfg.speech) off.push("captions off (install faster-whisper)");
   if (!S.cfg.ai) off.push("AI titles off (set ANTHROPIC_API_KEY)");
   $("caps").textContent = off.join(", ");
+  api("GET", "/api/phone").then((info) => {
+    $("btn-phone").hidden = !info.on_pc;
+    if (!info.on_pc) {                 // on a paired phone the file comes from the phone, then is copied to the PC
+      DROP_HINT = "Tap to choose a video. It is copied to your PC over Wi-Fi.";
+      drop.querySelector("strong").textContent = "Or use a video from this phone";
+      $("drop-hint").textContent = DROP_HINT;
+    }
+  }).catch(() => {});
   route();
 })();

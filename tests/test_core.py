@@ -41,3 +41,16 @@ def test_captions_highlight_one_word_at_a_time():
     lines = [l for l in ass.splitlines() if l.startswith("Dialogue: 0")]
     assert len(lines) == 3 and "NO WAY" in ass.replace("{\\c&H3DC5FF&}", "").replace("{\\c&HFFFFFF&}", "")
     assert "Dialogue: 1" in ass
+
+
+def test_phone_pairing_gate(tmp_path, monkeypatch):
+    from clutch import config, phone
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(config, "PROJECTS_DIR", tmp_path / "projects")
+    key = phone.key()
+    assert phone.key() == key                      # stable across calls
+    assert phone.allowed("127.0.0.1", "")          # this PC always gets in
+    assert not phone.allowed("192.168.1.50", "")   # other devices need the key
+    assert not phone.allowed("192.168.1.50", "wrong")
+    assert phone.allowed("192.168.1.50", key)
+    assert "<svg" in phone.qr_svg("http://192.168.1.2:8765/?key=" + key)

@@ -6,15 +6,42 @@ import re
 import shutil
 from pathlib import Path
 
-from fastapi import Body, FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse, Response
+from fastapi import Body, FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import __version__, ai, config, highlights, media, pipeline
+from . import __version__, ai, config, highlights, media, phone, pipeline
 from .signals import speech
 
 app = FastAPI(title="Clutch", version=__version__)
 pipeline.load_all()
+
+
+
+@app.middleware("http")
+async def pairing_gate(request: Request, call_next):
+    """This PC always gets in. Anything else on the network needs the pairing key from the QR code."""
+    host = request.client.host if request.client else ""
+    if phone.allowed(host, request.cookies.get(phone.COOKIE, "")):
+        return await call_next(request)
+    if phone.allowed("", request.query_params.get("key", "")):
+        resp = RedirectResponse(str(request.url.remove_query_params("key")), status_code=303)
+        resp.set_cookie(phone.COOKIE, phone.key(), max_age=365 * 24 * 3600, httponly=True, samesite="lax")
+        return resp
+    return PlainTextResponse("This phone isn't paired with Clutch yet. On your PC, open Clutch, "
+                             "choose 'Use on phone' and scan the QR code.", status_code=403)
+
+
+@app.get("/api/phone")
+def phone_info(request: Request):
+    on_pc = (request.client.host if request.client else "") in phone.LOOPBACK
+    if not on_pc:
+        return {"on_pc": False, "enabled": True}
+    if not phone.enabled():
+        return {"on_pc": True, "enabled": False}
+    link = phone.url()
+    return {"on_pc": True, "enabled": True, "url": link, "qr": phone.qr_svg(link)}
+
 
 VIDEO_EXT = {".mp4", ".mkv", ".mov", ".webm", ".flv", ".ts", ".avi", ".m4v"}
 
