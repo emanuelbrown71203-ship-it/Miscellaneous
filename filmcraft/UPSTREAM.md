@@ -12,10 +12,20 @@ in Rust. We use it as the base for our own features.
 ## Licence obligations
 
 - Keep `LICENSE-MIT`, `LICENSE-APACHE`, `NOTICE` and `ATTRIBUTION.md` with the code.
-- Under Apache-2.0, files we change must carry a notice saying they were changed.
-- **Branding:** the FilmCraft/ArtCraft names, owl icon and logos are trademarks, not open source
-  (`docs/brand/LICENSE-brand.txt`). Modified versions must remove them before they are distributed.
-  Rebrand the app before you ship or publish a changed build.
+- Under Apache-2.0, files we change must carry a notice saying they were changed. `NOTICE` records
+  that this is a modified version; the per-file history is in git.
+- **Branding:** the ArtCraft name, wordmark and logos are trademarks and not open source. Modified
+  versions must remove them. We removed them (formerly `docs/brand/`) and renamed the app to Cutroom.
+  FilmCraft's owl app icon is MIT OR Apache-2.0 (`assets/app-icon/LICENSE.txt`), so we may keep it.
+
+## What we changed
+
+- The product name in the UI, translations, web page and installer metadata is **Cutroom**. The
+  bundle ID is `app.cutroom.Cutroom`.
+- The ArtCraft wordmark, Discord button and ArtCraft links are removed. Help links point to this
+  repository, with a plain-text credit to FilmCraft.
+- Unchanged: internal crate names (`filmcraft-*`), the `window.filmcraft` web API, file formats
+  (`.fcproj`, `.fcgt`) and FilmCraft's docs.
 
 ## Updating from upstream
 

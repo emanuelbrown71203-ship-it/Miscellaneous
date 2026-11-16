@@ -9,10 +9,10 @@ use filmcraft_time::FrameRate;
 
 use crate::{ColorSignal, EncodedPacket, ExportError, ExportSettings, Format, H264Profile, Out, Result};
 
-/// The identification set FilmCraft's MXF files carry (company, product, version).
+/// The identification set Cutroom's MXF files carry (company, product, version).
 fn named(cfg: &mut WriterConfig) {
-    cfg.company = "FilmCraft".into();
-    cfg.product = "FilmCraft".into();
+    cfg.company = "Cutroom".into();
+    cfg.product = "Cutroom".into();
     cfg.version = env!("CARGO_PKG_VERSION").into();
 }
 
