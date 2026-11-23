@@ -1,6 +1,6 @@
 # Cutroom: sign in with Google, projects and footage in Google Drive
 
-Status: draft for approval · 2026-11-23 (owner decisions on sign-in and offline folded in)
+Status: approved by the owner · 2026-11-23
 
 ## Intent
 
