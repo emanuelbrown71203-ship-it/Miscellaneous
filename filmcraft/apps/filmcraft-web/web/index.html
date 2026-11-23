@@ -38,6 +38,62 @@
       <button id="fatal-reload" type="button">Reload</button>
     </div>
   </div>
+  <script src="sentry.min.js"></script>
+  <script>
+    // Crash reports (Sentry): panics, fatal errors and failed start-ups only. No session replay,
+    // tracing, IP address or console logs; file names in messages are replaced with <file>.
+    // `?noreport` turns reporting off; `?sentrytest` sends one test event.
+    const EXT = "mp4|m4v|mov|mkv|webm|avi|mxf|mts|m2ts|ts|wav|aif|aiff|mp3|aac|m4a|flac|ogg|opus|png|jpe?g|tiff?|exr|dpx|gif|webp|psd|srt|vtt|scc|fcproj|fcgt|xml|edl|otio|aaf|omf|cube";
+    const QUOTED = /“[^”]*”|"[^"\n]*"|'[^'\n]*'/g;
+    const ABS_PATH = /(?:[A-Za-z]:[\\/]|\\\\|\/(?:Users|home|Volumes|mnt|media|private|tmp|var|run)\/)[^:\n]*/g;
+    const FILE_WORDS = new RegExp(`(?:[^\\s/\\\\<>|:]+ ){0,4}[^\\s/\\\\<>|:]+\\.(?:${EXT})\\b`, "gi");
+    const scrub = (s) => (typeof s === "string" ? s.replace(QUOTED, "“<redacted>”").replace(ABS_PATH, "<path>").replace(FILE_WORDS, "<file>") : s);
+    const reportParams = new URLSearchParams(location.search);
+    const reporting = !!window.Sentry && !reportParams.has("noreport");
+    if (reporting) {
+      window.Sentry.init({
+        dsn: "https://0da9c6eaecbeea29a64b61d56b7f81c9@o4512478439931904.ingest.us.sentry.io/4512478460379136",
+        release: "cutroom@__FC_BUILD__",
+        environment: location.hostname === "cutroom-six-mu.vercel.app" ? "production" : "development",
+        // SDK 11 ignores `sendDefaultPii`; `dataCollection` decides, and its defaults collect user
+        // info (the IP address), cookies, headers and URL query strings. Turn all of that off.
+        dataCollection: {
+          userInfo: false,
+          cookies: false,
+          httpHeaders: false,
+          httpBodies: [],
+          urlQueryParams: false,
+          stackFrameVariables: false,
+        },
+        beforeBreadcrumb: (b) => (b.category === "console" ? null : b),
+        beforeSend(event) {
+          event.message = scrub(event.message);
+          if (event.logentry) event.logentry.message = scrub(event.logentry.message);
+          for (const ex of (event.exception && event.exception.values) || []) ex.value = scrub(ex.value);
+          return event;
+        },
+      });
+      if (reportParams.has("sentrytest")) window.Sentry.captureMessage("Cutroom test event", "info");
+    }
+    const reported = new Set();
+    window.cutroomReport = (what, level) => {
+      if (!reporting) return;
+      const text = String(what && (what.stack || what.message) || what).slice(0, 4000);
+      if (reported.has(text)) return;
+      reported.add(text);
+      if (what instanceof Error) {
+        window.Sentry.captureException(what, { level });
+      } else {
+        // A Rust panic arrives as text. Send it as a named error grouped by its first line
+        // ("panicked at crates/…/file.rs:line:col: …"); otherwise every panic shares this
+        // function's stack and Sentry files them all as one issue titled after it.
+        const err = new Error(text);
+        err.name = /panicked at/.test(text) ? "Rust panic" : "Cutroom error";
+        const key = text.replace(/^.*?(panicked at \S+).*$/s, "$1").split("\n")[0];
+        window.Sentry.captureException(err, { level, fingerprint: [err.name, key] });
+      }
+    };
+  </script>
   <script>
     // A Rust panic (or an out-of-memory abort) inside a frame stops the app for good: eframe logs
     // "panicked at …" with console.error, then the wasm traps ("RuntimeError: unreachable") and
@@ -47,13 +103,17 @@
     const consoleError = console.error.bind(console);
     console.error = (...a) => {
       const m = a.map(String).join(" ");
-      if (/panicked at|memory allocation of/.test(m)) lastPanic = m;
+      if (/panicked at|memory allocation of/.test(m)) {
+        lastPanic = m;
+        window.cutroomReport(m, "error");
+      }
       consoleError(...a);
     };
     window.filmcraftFatal = (what) => {
       if (window.filmcraftLoad.fatal) return;
       const msg = lastPanic || String(what && (what.stack || what.message) || what);
       window.filmcraftLoad.fatal = msg;
+      window.cutroomReport(msg, "fatal");
       const el = document.getElementById("fatal");
       document.getElementById("fatal-msg").textContent = msg.split("\n\nStack:")[0];
       el.classList.add("on");
@@ -80,6 +140,7 @@
     } catch (e) {
       const text = String(e && e.stack || e);
       window.filmcraftLoad.error = String(e);
+      window.cutroomReport(e, "fatal");
       // WebGPU was found but could not be started: try again on WebGL2 (once)
       if (!params.has("webgl") && !params.has("cpu") && /wgpu|webgpu|requestDevice|requestAdapter|GPUDevice|surface/i.test(text)) {
         params.set("webgl", "");

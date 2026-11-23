@@ -1,0 +1,137 @@
+# Builds Cutroom (filmcraft/) for the web and the desktop.
+#
+# - web:     the browser build, uploaded as an artifact and, when the VERCEL_TOKEN secret is set,
+#            deployed to the Vercel project "cutroom" (https://cutroom-six-mu.vercel.app).
+# - desktop: unsigned installers for Windows (MSI + zip), macOS (Apple Silicon DMG) and Linux
+#            (AppImage + tar.gz), uploaded as artifacts. Download them from the run's summary page.
+name: Cutroom builds
+
+on:
+  push:
+    branches: [main, "claude/**"]
+    paths:
+      - "filmcraft/**"
+      - "cutroom-web/vercel.json"
+      - ".github/workflows/cutroom.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cutroom-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  web:
+    name: Web build
+    runs-on: ubuntu-24.04
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: filmcraft
+          key: web
+
+      - name: Install wasm-bindgen and binaryen
+        run: |
+          cargo install wasm-bindgen-cli --version 0.2.129 --locked
+          mkdir -p "$RUNNER_TEMP/binaryen"
+          curl -fsSL https://github.com/WebAssembly/binaryen/releases/download/version_123/binaryen-version_123-x86_64-linux.tar.gz \
+            | tar xz -C "$RUNNER_TEMP/binaryen" --strip-components=1
+          echo "$RUNNER_TEMP/binaryen/bin" >> "$GITHUB_PATH"
+
+      # `cargo xtask web` runs wasm-opt itself when it is on PATH.
+      - name: Build
+        working-directory: filmcraft
+        run: cargo xtask web
+
+      - name: Stage the site
+        run: |
+          mkdir -p site/cutroom-web
+          cp -r filmcraft/target/web/dist/. site/cutroom-web/
+          cp cutroom-web/vercel.json site/cutroom-web/
+          ls -la site/cutroom-web
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cutroom-web
+          path: site/cutroom-web
+
+      # The Vercel project's root directory is cutroom-web/, so the site is uploaded inside it.
+      - name: Deploy to Vercel
+        if: env.VERCEL_TOKEN != ''
+        working-directory: site
+        env:
+          VERCEL_ORG_ID: team_Z3WkabKZtiSOMv6ZWul3P1AG
+          VERCEL_PROJECT_ID: prj_n9k42RaFeUOX2VyPdyXTvHBJhkEq
+        run: npx --yes vercel@65.11.0 deploy --prod --yes --token "$VERCEL_TOKEN"
+
+  desktop:
+    name: Desktop (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux
+            os: ubuntu-22.04 # older glibc, so the binaries also run on newer distros
+          - name: Windows
+            os: windows-latest
+          - name: macOS
+            os: macos-latest # Apple Silicon
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: filmcraft
+          key: desktop
+
+      - name: Package (Linux)
+        if: runner.os == 'Linux'
+        working-directory: filmcraft
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: "1" # appimagetool without FUSE
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev
+          bash packaging/linux/package.sh --formats "appimage tar"
+
+      - name: Package (macOS)
+        if: runner.os == 'macOS'
+        working-directory: filmcraft
+        run: bash packaging/macos/package.sh --arch aarch64
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        working-directory: filmcraft
+        shell: pwsh
+        run: |
+          dotnet tool install --global wix --version 5.0.2
+          pwsh packaging/windows/package.ps1 -Arch x64
+
+      # The packaging scripts name files after the upstream project; ship them as Cutroom.
+      - name: Rename to Cutroom
+        shell: bash
+        working-directory: filmcraft/dist/release
+        run: |
+          for f in filmcraft*; do mv "$f" "${f/filmcraft/cutroom}"; done
+          ls -la
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cutroom-desktop-${{ matrix.name }}
+          path: filmcraft/dist/release/*
