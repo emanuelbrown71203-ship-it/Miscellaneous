@@ -1,7 +1,9 @@
 //! The header bar (Premiere 26 layout, 38 pt): Home and Import / Edit / Export on the left, the
 //! document title centred, the workspace name and quick actions on the right. On macOS the menus
 //! live in the native menu bar (set up by the app); elsewhere a compact in-window menu bar follows
-//! the mode tabs.
+//! the mode tabs. The groups never overlap: in a narrow window the menus that don't fit move into
+//! an overflow menu, the title is clipped and then hidden, and the workspace name is hidden only
+//! when not even the overflow menu would fit beside it.
 
 use egui::{Color32, Rect, Sense, Stroke, pos2, vec2};
 
@@ -12,6 +14,15 @@ use crate::theme::Tokens;
 
 /// Height of the header bar. With `integrated_titlebar` it sits in the macOS title-bar strip.
 pub const HEIGHT: f32 = 38.0;
+
+/// Space kept between the header's groups: the mode tabs and menus, the sequence title, and the
+/// workspace name and quick actions.
+const GAP: f32 = 12.0;
+
+/// Room the in-window menus need at the least: their overflow title (`menus::MENU_OVERFLOW_TITLE`),
+/// which holds every menu that doesn't fit. When even that much is not left beside the workspace
+/// name, the name is hidden; the Workspaces button opens the same menu.
+const MIN_MENU_ROOM: f32 = 32.0;
 
 /// Draws the header bar in `rect` and handles its clicks: Home, the mode tabs, the workspace name
 /// and its menu (the workspaces, then Reset to Saved Layout, Save Changes to this Workspace, Save as
@@ -61,16 +72,8 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
         x += gw + 24.0;
     }
     let mut left_end = x;
-    // In-window menus when there is no native menu bar.
-    if app.ui.show_menu_bar {
-        let menu_rect = Rect::from_min_max(pos2(x + 6.0, rect.min.y + 7.0), pos2(x + 520.0, rect.max.y - 7.0));
-        let mut mu = ui.new_child(egui::UiBuilder::new().max_rect(menu_rect).layout(egui::Layout::left_to_right(egui::Align::Center)));
-        mu.style_mut().visuals.widgets.inactive.weak_bg_fill = Color32::TRANSPARENT;
-        mu.style_mut().visuals.widgets.inactive.bg_stroke = Stroke::NONE;
-        mu.style_mut().visuals.override_text_color = Some(t.text_dim);
-        crate::menus::menu_bar(app, &mut mu);
-        left_end = mu.min_rect().max.x;
-    }
+    // The in-window menus (when there is no native menu bar) are drawn after the right cluster,
+    // in the room it leaves, so they never run into the workspace name or the quick actions.
     // Document title, centred
     let title = if app.session.is_dirty() { tlf!("{name} - Edited", name = app.session.project.name) } else { app.session.project.name.clone() };
     // Right cluster: icons at ~38 pt pitch, then workspace name in caps.
@@ -119,39 +122,44 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
         crate::panels::settings::cycle_appearance(app, ui.ctx());
     }
     let ws_resp = btn(ui, Icon::Workspaces, "workspaces", tl!("Workspaces"), app);
-    // workspace name (caps)
+    // Left edge of the quick actions: the last button drawn is centred 14 pt left of `rx + 38`.
+    let buttons_left = rx + 38.0 - 28.0;
+    // workspace name (caps), shown when the window leaves room for it beside the menus
     let ws = crate::i18n::to_uppercase(crate::i18n::t(&app.ui.workspace));
     let wg = p.layout_no_wrap(ws.clone(), Tokens::ui(11.0), t.text_dim);
     let wr = Rect::from_min_size(pos2(rx - wg.size().x + 10.0, rect.center().y - 10.0), vec2(wg.size().x + 8.0, 20.0));
-    let wresp = ui.interact(wr, egui::Id::unique("hdr-ws-name"), Sense::click());
-    app.auto.add("header.workspaceName", wr, &ws);
-    p.galley_with_override_text_color(pos2(wr.min.x + 4.0, rect.center().y - wg.size().y / 2.0), wg, if wresp.hovered() { t.text } else { t.text_dim });
-    // Sequence title, centred in the gap between the menus and the workspace name.
-    {
-        // Localized menus and user titles can be wider than English. Use the actual gap.
-        let left = left_end + 12.0;
-        let right = wr.min.x - 12.0;
-        if right > left + 40.0 {
-            let mut job = egui::text::LayoutJob::simple_singleline(title, Tokens::ui(14.0), t.tab_text_active);
-            job.wrap.max_width = right - left;
-            job.wrap.max_rows = 1;
-            let galley = p.layout_job(job);
-            let half = galley.size().x / 2.0;
-            let center = if rect.center().x - half >= left && rect.center().x + half <= right { rect.center().x } else { (left + right) / 2.0 };
-            p.with_clip_rect(Rect::from_min_max(pos2(left, rect.min.y), pos2(right, rect.max.y))).galley(
-                pos2(center - half, rect.center().y - galley.size().y / 2.0),
-                galley,
-                t.tab_text_active,
-            );
-        }
+    let menu_x = left_end + 6.0;
+    let menus_need = if app.ui.show_menu_bar { MIN_MENU_ROOM } else { 0.0 };
+    let wresp = if wr.min.x - GAP >= menu_x + menus_need {
+        let wresp = ui.interact(wr, egui::Id::unique("hdr-ws-name"), Sense::click());
+        app.auto.add("header.workspaceName", wr, &ws);
+        p.galley_with_override_text_color(pos2(wr.min.x + 4.0, rect.center().y - wg.size().y / 2.0), wg, if wresp.hovered() { t.text } else { t.text_dim });
+        Some(wresp)
+    } else {
+        None
+    };
+    // Everything left of here is the menus' and the title's.
+    let right_end = if wresp.is_some() { wr.min.x } else { buttons_left };
+    // In-window menus when there is no native menu bar. Those that don't fit before the
+    // workspace name move into an overflow menu.
+    if app.ui.show_menu_bar {
+        let menu_rect = Rect::from_min_max(pos2(menu_x, rect.min.y + 7.0), pos2((right_end - GAP).max(menu_x), rect.max.y - 7.0));
+        let mut mu = ui.new_child(egui::UiBuilder::new().max_rect(menu_rect).layout(egui::Layout::left_to_right(egui::Align::Center)));
+        mu.style_mut().visuals.widgets.inactive.weak_bg_fill = Color32::TRANSPARENT;
+        mu.style_mut().visuals.widgets.inactive.bg_stroke = Stroke::NONE;
+        mu.style_mut().visuals.override_text_color = Some(t.text_dim);
+        left_end = crate::menus::menu_bar(app, &mut mu);
     }
+    let ws_name_clicked = wresp.as_ref().is_some_and(egui::Response::clicked);
+    // Sequence title, centred in the gap between the menus and the workspace name.
+    paint_title(app, &p, rect, title, left_end + GAP, right_end - GAP);
     let popup_id = egui::Id::unique("workspaces-popup");
-    if ws_resp.clicked() || wresp.clicked() {
+    if ws_resp.clicked() || ws_name_clicked {
         ui.ctx().data_mut(|d| d.insert_temp(popup_id, true));
     }
     let open = ui.ctx().data(|d| d.get_temp::<bool>(popup_id).unwrap_or(false));
     if open {
-        let anchor = pos2(wr.min.x, rect.max.y + 4.0);
+        let anchor = pos2(if wresp.is_some() { wr.min.x } else { ws_resp.rect.min.x }, rect.max.y + 4.0);
         let area = egui::Area::new(popup_id.with("area")).order(egui::Order::Foreground).fixed_pos(anchor).show(ui.ctx(), |ui| {
             egui::Frame::popup(ui.style()).show(ui, |ui| {
                 ui.with_layout(egui::Layout::top_down_justified(egui::Align::Min), |ui| {
@@ -185,10 +193,31 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
                 });
             });
         });
-        if area.response.clicked_elsewhere() && !(ws_resp.clicked() || wresp.clicked()) {
+        if area.response.clicked_elsewhere() && !(ws_resp.clicked() || ws_name_clicked) {
             ui.ctx().data_mut(|d| d.insert_temp(popup_id, false));
         }
     }
+}
+
+/// Draws the sequence title centred in the header when it fits between `left` and `right` (the
+/// menus' and the workspace name's edges, less the gaps), else centred in that gap and clipped to
+/// it. With less than 40 pt of room it is not drawn. Localized menus and user titles can be wider
+/// than English, so it uses the actual gap.
+fn paint_title(app: &mut FilmcraftApp, p: &egui::Painter, rect: Rect, title: String, left: f32, right: f32) {
+    if right <= left + 40.0 {
+        return;
+    }
+    let t = app.tokens;
+    let mut job = egui::text::LayoutJob::simple_singleline(title, Tokens::ui(14.0), t.tab_text_active);
+    job.wrap.max_width = right - left;
+    job.wrap.max_rows = 1;
+    let galley = p.layout_job(job);
+    let half = galley.size().x / 2.0;
+    let center = if rect.center().x - half >= left && rect.center().x + half <= right { rect.center().x } else { (left + right) / 2.0 };
+    let pos = pos2(center - half, rect.center().y - galley.size().y / 2.0);
+    let clip = Rect::from_min_max(pos2(left, rect.min.y), pos2(right, rect.max.y));
+    app.auto.add("header.title", Rect::from_min_size(pos, galley.size()).intersect(clip), galley.text());
+    p.with_clip_rect(clip).galley(pos, galley, t.tab_text_active);
 }
 
 #[cfg(test)]
