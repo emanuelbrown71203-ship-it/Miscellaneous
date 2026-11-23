@@ -16,6 +16,17 @@
     }
     #loading img { width: 56px; height: 56px; }
     #loading .err { color: #ff8a7a; white-space: pre-wrap; max-width: 70ch; pointer-events: auto; }
+    #loading .nogpu {
+      max-width: min(60ch, calc(100vw - 32px)); max-height: calc(100vh - 110px); overflow: auto;
+      box-sizing: border-box; padding: 18px 22px; background: #26272b; border-radius: 8px;
+      color: #e6e6e8; font-size: 15px; line-height: 1.5; pointer-events: auto;
+    }
+    #loading .nogpu h1 { margin: 0 0 8px; font-size: 18px; color: #fff; }
+    #loading .nogpu p { margin: 0 0 10px; }
+    #loading .nogpu ul { margin: 0 0 14px; padding-left: 22px; }
+    #loading .nogpu li { margin-bottom: 6px; }
+    #loading .nogpu summary { cursor: pointer; color: #a9a9ad; font-size: 13px; }
+    #loading .nogpu pre { margin: 8px 0 0; white-space: pre-wrap; word-break: break-word; font-size: 12px; color: #a9a9ad; }
     #fatal {
       position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
       background: rgba(20, 20, 22, 0.88); color: #e6e6e8; font: 14px/1.45 system-ui, sans-serif; z-index: 10;
@@ -76,13 +87,18 @@
       if (reportParams.has("sentrytest")) window.Sentry.captureMessage("Cutroom test event", "info");
     }
     const reported = new Set();
-    window.cutroomReport = (what, level) => {
+    // `context` may add Sentry `tags` and a `fingerprint`, e.g. to tell a computer without a usable
+    // GPU (`failure: "no-gpu"`, level "warning") apart from a real crash.
+    window.cutroomReport = (what, level, context = {}) => {
       if (!reporting) return;
       const text = String(what && (what.stack || what.message) || what).slice(0, 4000);
       if (reported.has(text)) return;
       reported.add(text);
-      if (what instanceof Error) {
-        window.Sentry.captureException(what, { level });
+      if (context.fingerprint) {
+        const err = what instanceof Error ? what : new Error(text);
+        window.Sentry.captureException(err, { level, tags: context.tags, fingerprint: context.fingerprint });
+      } else if (what instanceof Error) {
+        window.Sentry.captureException(what, { level, tags: context.tags });
       } else {
         // A Rust panic arrives as text. Send it as a named error grouped by its first line
         // ("panicked at crates/…/file.rs:line:col: …"); otherwise every panic shares this
@@ -90,7 +106,7 @@
         const err = new Error(text);
         err.name = /panicked at/.test(text) ? "Rust panic" : "Cutroom error";
         const key = text.replace(/^.*?(panicked at \S+).*$/s, "$1").split("\n")[0];
-        window.Sentry.captureException(err, { level, fingerprint: [err.name, key] });
+        window.Sentry.captureException(err, { level, tags: context.tags, fingerprint: [err.name, key] });
       }
     };
   </script>
@@ -131,6 +147,42 @@
     const v = build.startsWith("__") ? "" : "?v=" + build;
     const t0 = performance.now();
     const params = new URLSearchParams(location.search);
+    // A fresh canvas, so a context the app already took can't make WebGL2 look unavailable.
+    function webgl2Available() {
+      try {
+        const gl = document.createElement("canvas").getContext("webgl2");
+        if (!gl) return false;
+        const lose = gl.getExtension("WEBGL_lose_context");
+        if (lose) lose.loseContext();
+        return true;
+      } catch {
+        return false;
+      }
+    }
+    function showNoGpu(details) {
+      const s = document.getElementById("status");
+      if (!s) return;
+      s.className = "nogpu";
+      s.setAttribute("role", "alert");
+      s.innerHTML = `
+        <h1>Cutroom can’t run in this browser</h1>
+        <p>Cutroom uses your computer’s graphics chip to show your video, through a browser feature called WebGPU or WebGL2. This browser has both turned off or can’t use them right now.</p>
+        <p>To fix it, try one of these:</p>
+        <ul>
+          <li>Open Cutroom in <b>Google Chrome</b> or <b>Microsoft Edge</b>.</li>
+          <li>Turn on <b>hardware acceleration</b> (sometimes called “graphics acceleration”) in your browser’s settings, then restart the browser.</li>
+          <li><b>Update your graphics drivers</b>, from your computer maker or from NVIDIA, AMD or Intel, then restart your computer.</li>
+          <li>If you’re using a remote desktop or a virtual machine, try on your own computer instead.</li>
+        </ul>
+        <details>
+          <summary>Technical details</summary>
+          <pre></pre>
+        </details>`;
+      s.querySelector("pre").textContent =
+        `WebGPU: ${navigator.gpu ? "present, but it could not be started" : "not available"}\n` +
+        `WebGL2: not available\n` +
+        `Browser: ${navigator.userAgent}\n\n${details}`;
+    }
     try {
       const { default: init, start } = await import("./filmcraft_web.js" + v);
       await init({ module_or_path: new URL("filmcraft_web_bg.wasm" + v, location.href) });
@@ -140,16 +192,30 @@
     } catch (e) {
       const text = String(e && e.stack || e);
       window.filmcraftLoad.error = String(e);
-      window.cutroomReport(e, "fatal");
-      // WebGPU was found but could not be started: try again on WebGL2 (once)
-      if (!params.has("webgl") && !params.has("cpu") && /wgpu|webgpu|requestDevice|requestAdapter|GPUDevice|surface/i.test(text)) {
-        params.set("webgl", "");
-        location.replace(location.pathname + "?" + params.toString().replace(/=(&|$)/g, "$1") + location.hash);
+      const gpuError = /wgpu|webgpu|webgl|requestDevice|requestAdapter|GPUDevice|surface/i.test(text);
+      const webgl2 = webgl2Available();
+      // Neither WebGPU nor WebGL2 works here (graphics turned off, a blocked driver, some remote
+      // desktops): this computer can't run Cutroom, so explain what to do instead of showing the
+      // raw error, and report it as a warning tagged `failure: no-gpu`, apart from real crashes.
+      if (!webgl2 && (gpuError || !navigator.gpu)) {
+        window.filmcraftLoad.noGpu = true;
+        window.cutroomReport(e, "warning", { tags: { failure: "no-gpu", webgpu: navigator.gpu ? "failed" : "missing" }, fingerprint: ["Cutroom no GPU"] });
+        showNoGpu(text);
+        // Not rethrown: an uncaught error would also reach Sentry's global handler and be
+        // reported a second time, untagged, at level "error".
+        console.warn("Cutroom needs WebGPU or WebGL2:", text);
       } else {
-        const s = document.getElementById("status");
-        if (s) { s.className = "err"; s.textContent = "Cutroom failed to start:\n" + text; }
+        window.cutroomReport(e, "fatal");
+        // WebGPU was found but could not be started: try again on WebGL2 (once)
+        if (!params.has("webgl") && !params.has("cpu") && gpuError) {
+          params.set("webgl", "");
+          location.replace(location.pathname + "?" + params.toString().replace(/=(&|$)/g, "$1") + location.hash);
+        } else {
+          const s = document.getElementById("status");
+          if (s) { s.className = "err"; s.textContent = "Cutroom failed to start:\n" + text; }
+        }
+        throw e;
       }
-      throw e;
     }
   </script>
 </body>
